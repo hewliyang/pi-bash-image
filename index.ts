@@ -12,18 +12,12 @@
 
 import {
   createBashTool,
+  createReadTool,
   type ExtensionAPI,
 } from "@mariozechner/pi-coding-agent";
 import type { ImageContent } from "@mariozechner/pi-ai";
-import { readFileSync } from "node:fs";
-import { fileTypeFromBuffer } from "file-type";
 
-const SUPPORTED_MIME_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-]);
+type RichContent = { type: "text"; text: string } | ImageContent;
 
 // ---------------------------------------------------------------------------
 // Core types
@@ -36,13 +30,17 @@ interface BashCommand {
   preamble: string;
   /** Prompt guideline surfaced to the model */
   guideline: string;
-  /** Process a marker payload → content block or error string */
-  handle(payload: string): Promise<ImageContent | { error: string }>;
+  /** Process a marker payload → content blocks or error string */
+  handle(payload: string): Promise<RichContent[] | { error: string }>;
 }
 
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
+
+const piReadTool = createReadTool(process.cwd(), {
+  autoResizeImages: true,
+});
 
 const imageCommand: BashCommand = {
   name: "IMAGE",
@@ -67,16 +65,16 @@ const imageCommand: BashCommand = {
     "Pipe text into it to keep both: `some-command | __PI_IMAGE__ <path>`. " +
     "Multiple files: `__PI_IMAGE__ a.png b.png`.",
   async handle(payload) {
-    const data = readFileSync(payload);
-    const fileType = await fileTypeFromBuffer(data);
-    if (!fileType || !SUPPORTED_MIME_TYPES.has(fileType.mime)) {
+    const result = await piReadTool.execute("__pi_image__", { path: payload });
+    const hasImage = result.content.some(
+      (block): block is ImageContent => block.type === "image",
+    );
+
+    if (!hasImage) {
       return { error: `not a supported image (png/jpg/gif/webp): ${payload}` };
     }
-    return {
-      type: "image",
-      data: data.toString("base64"),
-      mimeType: fileType.mime,
-    };
+
+    return result.content as RichContent[];
   },
 };
 
@@ -100,11 +98,11 @@ function findMarker(line: string): { cmd: BashCommand; marker: string } | null {
 }
 
 async function processTextBlock(text: string): Promise<{
-  content: ({ type: "text"; text: string } | ImageContent)[];
+  content: RichContent[];
   foundMarkers: boolean;
 }> {
   const lines = text.split("\n");
-  const content: ({ type: "text"; text: string } | ImageContent)[] = [];
+  const content: RichContent[] = [];
   const textLines: string[] = [];
   let foundMarkers = false;
 
@@ -132,7 +130,7 @@ async function processTextBlock(text: string): Promise<{
       if ("error" in block) {
         textLines.push(`[__PI_${match.cmd.name}__: ${block.error}]`);
       } else {
-        content.push(block);
+        content.push(...block);
       }
     } catch (e: any) {
       textLines.push(`[__PI_${match.cmd.name}__: ${e.message}]`);
@@ -170,7 +168,7 @@ export default function (pi: ExtensionAPI) {
         onUpdate,
       );
 
-      const newContent: ({ type: "text"; text: string } | ImageContent)[] = [];
+      const newContent: RichContent[] = [];
       let foundMarkers = false;
 
       for (const block of result.content) {
