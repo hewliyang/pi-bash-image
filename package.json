@@ -1,0 +1,17 @@
+{
+  "name": "pi-bash-image",
+  "version": "0.1.0",
+  "description": "Inject images into bash tool results — no extra round trip. Append && __PI_IMAGE__ file.png to any bash command.",
+  "keywords": ["pi-package"],
+  "license": "MIT",
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "dependencies": {
+    "file-type": "^19.0.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  }
+}
