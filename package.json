@@ -1,6 +1,6 @@
 {
   "name": "pi-bash-image",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Inject images into bash tool results",
   "keywords": [
     "pi-package"
