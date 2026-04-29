@@ -11,9 +11,9 @@
  */
 
 import {
-  createBashTool,
-  createReadTool,
-  type ExtensionAPI,
+	createBashTool,
+	createReadTool,
+	type ExtensionAPI,
 } from "@mariozechner/pi-coding-agent";
 import type { ImageContent } from "@mariozechner/pi-ai";
 
@@ -24,14 +24,14 @@ type RichContent = { type: "text"; text: string } | ImageContent;
 // ---------------------------------------------------------------------------
 
 interface BashCommand {
-  /** Uppercase name used in marker, e.g. "IMAGE" → __PI_IMAGE_MARKER__:payload */
-  name: string;
-  /** Shell function body injected into every bash invocation */
-  preamble: string;
-  /** Prompt guideline surfaced to the model */
-  guideline: string;
-  /** Process a marker payload → content blocks or error string */
-  handle(payload: string): Promise<RichContent[] | { error: string }>;
+	/** Uppercase name used in marker, e.g. "IMAGE" → __PI_IMAGE_MARKER__:payload */
+	name: string;
+	/** Shell function body injected into every bash invocation */
+	preamble: string;
+	/** Prompt guideline surfaced to the model */
+	guideline: string;
+	/** Process a marker payload → content blocks or error string */
+	handle(payload: string): Promise<RichContent[] | { error: string }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -39,43 +39,43 @@ interface BashCommand {
 // ---------------------------------------------------------------------------
 
 const piReadTool = createReadTool(process.cwd(), {
-  autoResizeImages: true,
+	autoResizeImages: true,
 });
 
 const imageCommand: BashCommand = {
-  name: "IMAGE",
-  preamble: [
-    `__PI_IMAGE__() {`,
-    `  if [ -p /dev/stdin ]; then cat; printf '\n'; fi`,
-    `  for f in "$@"; do`,
-    `    _pimg=$(realpath "$f" 2>/dev/null)`,
-    `    if [ -n "$_pimg" ] && [ -f "$_pimg" ]; then`,
-    `      echo "__PI_IMAGE_MARKER__:$_pimg"`,
-    `    else`,
-    `      echo "[__PI_IMAGE__: file not found: $f]" >&2`,
-    `    fi`,
-    `  done`,
-    `}`,
-  ].join("\n"),
-  guideline:
-    "The bash environment has a built-in `__PI_IMAGE__` helper. " +
-    "Use it to compose with any CLI that produces images (screenshots, charts, diagrams, etc.) " +
-    "and include the result directly in the tool response — no separate read call needed. " +
-    "Append `&& __PI_IMAGE__ <path>` to your command. " +
-    "Pipe text into it to keep both: `some-command | __PI_IMAGE__ <path>`. " +
-    "Multiple files: `__PI_IMAGE__ a.png b.png`.",
-  async handle(payload) {
-    const result = await piReadTool.execute("__pi_image__", { path: payload });
-    const hasImage = result.content.some(
-      (block): block is ImageContent => block.type === "image",
-    );
+	name: "IMAGE",
+	preamble: [
+		`__PI_IMAGE__() {`,
+		`  if [ -p /dev/stdin ]; then cat; printf '\n'; fi`,
+		`  for f in "$@"; do`,
+		`    _pimg=$(realpath "$f" 2>/dev/null)`,
+		`    if [ -n "$_pimg" ] && [ -f "$_pimg" ]; then`,
+		`      echo "__PI_IMAGE_MARKER__:$_pimg"`,
+		`    else`,
+		`      echo "[__PI_IMAGE__: file not found: $f]" >&2`,
+		`    fi`,
+		`  done`,
+		`}`,
+	].join("\n"),
+	guideline:
+		"The bash environment has a built-in `__PI_IMAGE__` helper. " +
+		"Use it to compose with any CLI that produces images (screenshots, charts, diagrams, etc.) " +
+		"and include the result directly in the tool response — no separate read call needed. " +
+		"Append `&& __PI_IMAGE__ <path>` to your command. " +
+		"Pipe text into it to keep both: `some-command | __PI_IMAGE__ <path>`. " +
+		"Multiple files: `__PI_IMAGE__ a.png b.png`.",
+	async handle(payload) {
+		const result = await piReadTool.execute("__pi_image__", { path: payload });
+		const hasImage = result.content.some(
+			(block): block is ImageContent => block.type === "image",
+		);
 
-    if (!hasImage) {
-      return { error: `not a supported image (png/jpg/gif/webp): ${payload}` };
-    }
+		if (!hasImage) {
+			return { error: `not a supported image (png/jpg/gif/webp): ${payload}` };
+		}
 
-    return result.content as RichContent[];
-  },
+		return result.content as RichContent[];
+	},
 };
 
 // Add new commands here:
@@ -87,58 +87,58 @@ const commands: BashCommand[] = [imageCommand];
 
 const markerMap = new Map<string, BashCommand>();
 for (const cmd of commands) {
-  markerMap.set(`__PI_${cmd.name}_MARKER__:`, cmd);
+	markerMap.set(`__PI_${cmd.name}_MARKER__:`, cmd);
 }
 
 function findMarker(line: string): { cmd: BashCommand; marker: string } | null {
-  for (const [marker, cmd] of markerMap) {
-    if (line.startsWith(marker)) return { cmd, marker };
-  }
-  return null;
+	for (const [marker, cmd] of markerMap) {
+		if (line.startsWith(marker)) return { cmd, marker };
+	}
+	return null;
 }
 
 async function processTextBlock(text: string): Promise<{
-  content: RichContent[];
-  foundMarkers: boolean;
+	content: RichContent[];
+	foundMarkers: boolean;
 }> {
-  const lines = text.split("\n");
-  const content: RichContent[] = [];
-  const textLines: string[] = [];
-  let foundMarkers = false;
+	const lines = text.split("\n");
+	const content: RichContent[] = [];
+	const textLines: string[] = [];
+	let foundMarkers = false;
 
-  const flushText = () => {
-    if (textLines.length === 0) return;
-    content.push({ type: "text", text: textLines.join("\n") });
-    textLines.length = 0;
-  };
+	const flushText = () => {
+		if (textLines.length === 0) return;
+		content.push({ type: "text", text: textLines.join("\n") });
+		textLines.length = 0;
+	};
 
-  for (const line of lines) {
-    const match = findMarker(line);
-    if (!match) {
-      textLines.push(line);
-      continue;
-    }
+	for (const line of lines) {
+		const match = findMarker(line);
+		if (!match) {
+			textLines.push(line);
+			continue;
+		}
 
-    foundMarkers = true;
-    flushText();
+		foundMarkers = true;
+		flushText();
 
-    const payload = line.slice(match.marker.length).trim();
-    if (!payload) continue;
+		const payload = line.slice(match.marker.length).trim();
+		if (!payload) continue;
 
-    try {
-      const block = await match.cmd.handle(payload);
-      if ("error" in block) {
-        textLines.push(`[__PI_${match.cmd.name}__: ${block.error}]`);
-      } else {
-        content.push(...block);
-      }
-    } catch (e: any) {
-      textLines.push(`[__PI_${match.cmd.name}__: ${e.message}]`);
-    }
-  }
+		try {
+			const block = await match.cmd.handle(payload);
+			if ("error" in block) {
+				textLines.push(`[__PI_${match.cmd.name}__: ${block.error}]`);
+			} else {
+				content.push(...block);
+			}
+		} catch (e: any) {
+			textLines.push(`[__PI_${match.cmd.name}__: ${e.message}]`);
+		}
+	}
 
-  flushText();
-  return { content, foundMarkers };
+	flushText();
+	return { content, foundMarkers };
 }
 
 // ---------------------------------------------------------------------------
@@ -147,43 +147,51 @@ async function processTextBlock(text: string): Promise<{
 
 const preamble = commands.map((c) => c.preamble).join("\n") + "\n";
 
+const guidelinesBlock = commands.map((c) => `- ${c.guideline}`).join("\n");
+
 export default function (pi: ExtensionAPI) {
-  const bashTool = createBashTool(process.cwd(), {
-    spawnHook: ({ command, cwd, env }) => ({
-      command: preamble + command,
-      cwd,
-      env,
-    }),
-  });
+	const bashTool = createBashTool(process.cwd(), {
+		spawnHook: ({ command, cwd, env }) => ({
+			command: preamble + command,
+			cwd,
+			env,
+		}),
+	});
 
-  pi.registerTool({
-    ...bashTool,
-    promptGuidelines: commands.map((c) => c.guideline),
+	pi.on("before_agent_start", (event) => ({
+		systemPrompt: `${event.systemPrompt}\n\nBash helpers:\n${guidelinesBlock}`,
+	}));
 
-    async execute(toolCallId, params, signal, onUpdate, _ctx) {
-      const result = await bashTool.execute(
-        toolCallId,
-        params,
-        signal,
-        onUpdate,
-      );
+	pi.registerTool({
+		...bashTool,
+		promptSnippet:
+			"Execute bash commands (with __PI_IMAGE__ helper for inline images)",
+		promptGuidelines: commands.map((c) => c.guideline),
 
-      const newContent: RichContent[] = [];
-      let foundMarkers = false;
+		async execute(toolCallId, params, signal, onUpdate, _ctx) {
+			const result = await bashTool.execute(
+				toolCallId,
+				params,
+				signal,
+				onUpdate,
+			);
 
-      for (const block of result.content) {
-        if (block.type !== "text") {
-          newContent.push(block);
-          continue;
-        }
+			const newContent: RichContent[] = [];
+			let foundMarkers = false;
 
-        const processed = await processTextBlock(block.text);
-        foundMarkers ||= processed.foundMarkers;
-        newContent.push(...processed.content);
-      }
+			for (const block of result.content) {
+				if (block.type !== "text") {
+					newContent.push(block);
+					continue;
+				}
 
-      if (!foundMarkers) return result;
-      return { ...result, content: newContent };
-    },
-  });
+				const processed = await processTextBlock(block.text);
+				foundMarkers ||= processed.foundMarkers;
+				newContent.push(...processed.content);
+			}
+
+			if (!foundMarkers) return result;
+			return { ...result, content: newContent };
+		},
+	});
 }
